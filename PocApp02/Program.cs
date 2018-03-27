@@ -73,7 +73,7 @@ namespace ConsoleApp.NetCore2
                 // Real query 2a: left outer join to IEnumerable<PostTag> result
                 //
 
-                Console.WriteLine("Real Query 2a");
+                Console.WriteLine("Real GroupJoin() Query 2a");
 
                 var query2a = db.Blogs
                              .Join(db.Posts, b => b.BlogId, p => p.BlogId, (b, p) => new { b, p })
@@ -103,7 +103,7 @@ namespace ConsoleApp.NetCore2
                 // Real query 2b: left outer join to flattened .SelectMany() result
                 //
 
-                Console.WriteLine("Real Query 2b");
+                Console.WriteLine("Real SelectMany() Query 2b");
 
                 var query2b = db.Blogs
                     .Join(db.Posts, b => b.BlogId, p => p.BlogId, (b, p) => new { b, p })
@@ -173,6 +173,8 @@ namespace ConsoleApp.NetCore2
 
                 Console.WriteLine();
 
+#if INCLUDE_ITEMNAME_ERROR
+
                 //
                 // Dynamic Query 3a: left outer join to IEnumerable<PostTag> result - All EF
                 //
@@ -198,6 +200,7 @@ namespace ConsoleApp.NetCore2
                 }
 
                 Console.WriteLine();
+#endif
 
                 //
                 // Dynamic Query 3b: left outer join to flattened .SelectMany() result - All ToList()
@@ -243,6 +246,8 @@ namespace ConsoleApp.NetCore2
 
                 Console.WriteLine();
 
+#if INCLUDE_ITEMNAME_ERROR
+
                 //
                 // Dynamic Query 3b: left outer join to flattened .SelectMany() result - All EF
                 //
@@ -259,6 +264,70 @@ namespace ConsoleApp.NetCore2
                     Blog b = (Blog)result.bp.b;
                     Post p = (Post)result.bp.p;
                     PostTag pt = (PostTag)result.pt;
+
+                    Console.WriteLine($"{b.BlogId} {b.Url} {p.PostId} {p.Title} {p.Content} {pt?.PostTagId} {pt?.Tag}");
+                }
+
+                Console.WriteLine();
+#endif
+
+                //
+                // Mixed Real with Dynamic .Where() Query 4a: left outer join to IEnumerable<PostTag> result
+                //
+
+                object[] pList = new object[]
+                {
+                                0,
+                                "com",
+                                0,
+                                "baz"
+                };
+
+                Console.WriteLine("Mixed Real with Dynamic .Where() GroupJoin() Query 4a");
+
+                var query4a = db.Blogs
+                             .Join(db.Posts, b => b.BlogId, p => p.BlogId, (b, p) => new { b, p })
+                             .GroupJoin(db.PostTags, bp => bp.p.PostId, pt => pt.PostId, (bp, pt_g) => new { bp, pt_g })
+                             .Where("bp.b.BlogId >= @0 and bp.b.Url.Contains(@1) and pt_g.Count() > @2", pList)
+                             .Select(m => new {
+                                 m.bp.b,
+                                 m.bp.p,
+                                 m.pt_g
+                             });
+
+                foreach (var result in query4a)
+                {
+                    Blog b = result.b;
+                    Post p = result.p;
+                    IEnumerable<PostTag> pt_g = result.pt_g;
+
+                    Console.WriteLine($"{b.BlogId} {b.Url} {p.PostId} {p.Title} {p.Content}");
+                    foreach (var pt in pt_g)
+                    {
+                        Console.WriteLine($"    {pt.PostTagId} {pt.Tag}");
+                    }
+                }
+
+                Console.WriteLine();
+
+                //
+                // Mixed Real with Dynamic .Where() Query 4b: left outer join to flattened .SelectMany() result
+                //
+
+                Console.WriteLine("Mixed Real with Dynamic .Where() SelectMany() Query 4b");
+
+                var dynQuery4b = db.Blogs
+                    .Join(db.Posts, b => b.BlogId, p => p.BlogId, (b, p) => new { b, p })
+                    .GroupJoin(db.PostTags, bp => bp.p.PostId, pt => pt.PostId, (bp, pt_g) => new { bp, pt_g })
+                    .SelectMany(m => m.pt_g.DefaultIfEmpty(), (pj, pt) => new { pj.bp, pt, pj.pt_g})
+                    .Where("bp.b.BlogId >= @0 and bp.b.Url.Contains(@1) and pt_g.Count() > @2 and pt.Tag = @3", pList);
+
+                foreach (dynamic result in dynQuery4b)
+                {
+                    Blog b = (Blog)result.bp.b;
+                    Post p = (Post)result.bp.p;
+                    PostTag pt = (PostTag)result.pt;
+                    IEnumerable<PostTag> pt_g = result.pt_g;
 
                     Console.WriteLine($"{b.BlogId} {b.Url} {p.PostId} {p.Title} {p.Content} {pt?.PostTagId} {pt?.Tag}");
                 }
